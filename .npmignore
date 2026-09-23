@@ -1,3 +1,6 @@
 test-malicious.json
+test-clean.json
+test.js
 .git
 .gitignore
+.github
