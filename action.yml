@@ -1,0 +1,27 @@
+name: 'Jev Sec Audit'
+description: 'Lightning-fast AI supply chain security auditor using Jev (System 1 models)'
+author: 'DhanushNehru'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  api-key:
+    description: 'TypeSafe AI API Key for Jev'
+    required: true
+  target:
+    description: 'Target file or directory to audit (e.g., package-lock.json)'
+    required: false
+    default: './package-lock.json'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install dependencies
+      run: npm install -g jev-sec-audit
+      shell: bash
+    - name: Run Audit
+      env:
+        JEV_API_KEY: ${{ inputs.api-key }}
+      run: jev-sec-audit ${{ inputs.target }}
+      shell: bash
