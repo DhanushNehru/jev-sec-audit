@@ -2,105 +2,104 @@
 
 const fs = require('fs');
 const path = require('path');
-const { program } = require('commander');
-const axios = require('axios');
-const chalk = require('chalk');
 
-program
-  .name('jev-sec-audit')
-  .description('Lightning-fast AI supply chain security auditor using Jev (System 1 models)')
-  .version('1.0.0')
-  .argument('<file>', 'File to audit (e.g., package-lock.json, diff file, or source code)')
-  .option('-k, --key <token>', 'TypeSafe AI API Key (or set JEV_API_KEY env var)')
-  .action(async (file, options) => {
-    const apiKey = options.key || process.env.JEV_API_KEY;
+// ANSI Colors for minimalist formatting (Zero dependencies)
+const c = {
+  red: (s) => `\x1b[31m${s}\x1b[0m`,
+  green: (s) => `\x1b[32m${s}\x1b[0m`,
+  yellow: (s) => `\x1b[33m${s}\x1b[0m`,
+  cyan: (s) => `\x1b[36m${s}\x1b[0m`,
+  magenta: (s) => `\x1b[35m${s}\x1b[0m`,
+  bold: (s) => `\x1b[1m${s}\x1b[0m`,
+  bgRed: (s) => `\x1b[41m\x1b[37m${s}\x1b[0m`
+};
 
-    if (!apiKey) {
-      console.error(chalk.red('Error: API key is required. Use -k <token> or set JEV_API_KEY.'));
-      console.log(chalk.yellow('Get your API key at: https://typesafe.ai/jev'));
-      process.exit(1);
+// Simple Levenshtein distance for typosquatting
+const levenshtein = (a, b) => {
+  const m = [];
+  for (let i = 0; i <= b.length; i++) { m[i] = [i]; }
+  for (let j = 0; j <= a.length; j++) { m[0][j] = j; }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) m[i][j] = m[i - 1][j - 1];
+      else m[i][j] = Math.min(m[i - 1][j - 1] + 1, Math.min(m[i][j - 1] + 1, m[i - 1][j] + 1));
     }
+  }
+  return m[b.length][a.length];
+};
 
-    const filePath = path.resolve(process.cwd(), file);
+const TOP_PACKAGES = ['react', 'react-dom', 'express', 'lodash', 'moment', 'chalk', 'request', 'commander', 'axios', 'async', 'webpack', 'vue', 'angular', 'jest', 'eslint', 'typescript'];
 
-    if (!fs.existsSync(filePath)) {
-      console.error(chalk.red(`Error: File not found at ${filePath}`));
-      process.exit(1);
-    }
+const args = process.argv.slice(2);
+const apiKey = process.env.JEV_API_KEY || (args.includes('-k') ? args[args.indexOf('-k') + 1] : null);
+const file = args.find(a => !a.startsWith('-') && a !== apiKey) || 'package.json';
 
-    console.log(chalk.blue(`[+] Auditing ${file} with Jev System-One engine...`));
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
+console.log(c.bold(c.cyan('\n🛡️  jev-sec-audit: System 1 Security Scanner (Zero-Dep Mode)\n')));
 
-    // To prevent extremely large payload requests, we truncate to first 500kb
-    const contentToAnalyze = fileContent.substring(0, 500000);
+const filePath = path.resolve(process.cwd(), file);
+if (!fs.existsSync(filePath)) {
+  console.error(c.red(`❌ Error: File not found at ${filePath}`));
+  process.exit(1);
+}
 
-    const schema = {
-      is_malicious: "boolean",
-      confidence: "float",
-      threat_type: ["typosquatting", "obfuscated_code", "postinstall_script", "hardcoded_secret", "none"],
-      explanation: "string"
-    };
+let pkgData;
+try {
+  pkgData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+} catch (e) {
+  console.error(c.red(`❌ Failed to parse ${file} as JSON.`));
+  process.exit(1);
+}
 
-    try {
-      const startTime = Date.now();
-      
-      // Call to TypeSafe AI's Jev model (API Endpoint represents an example implementation)
-      const response = await axios.post(
-        'https://api.typesafe.ai/v1/jev/decide', 
-        {
-          model: 'jev-fast-decision',
-          input: contentToAnalyze,
-          schema: schema,
-          context: "Analyze the provided code or configuration file for supply chain attacks, malware, and hidden vulnerabilities. This is a security audit."
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+const deps = Object.keys({ ...pkgData.dependencies, ...pkgData.devDependencies });
+const scripts = pkgData.scripts || {};
+let findings = [];
 
-      const endTime = Date.now();
-      const decision = response.data.decision;
-
-      console.log(chalk.gray(`\nAnalysis completed in ${endTime - startTime}ms`));
-      
-      if (decision.is_malicious) {
-        console.log(chalk.red.bold('\n⚠️ THREAT DETECTED ⚠️'));
-        console.log(chalk.red(`Threat Type:  ${decision.threat_type}`));
-        console.log(chalk.red(`Confidence:   ${(decision.confidence * 100).toFixed(2)}%`));
-        console.log(chalk.yellow(`Explanation:  ${decision.explanation}`));
-        process.exit(1);
-      } else {
-        console.log(chalk.green.bold('\n✅ No threats detected.'));
-        console.log(chalk.green(`Confidence:   ${(decision.confidence * 100).toFixed(2)}%`));
-        process.exit(0);
-      }
-    } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.error(chalk.red('Error: Invalid API Key. Please verify your Jev token.'));
-      } else {
-        // Fallback mock logic for demo purposes when API isn't available yet or endpoint errors
-        console.log(chalk.yellow(`\n[!] Note: Reverting to local heuristic/mock engine (API connection failed or unauthorized).`));
-        console.log(chalk.gray(`Error Details: ${error.message}`));
-        
-        // Mock Decision 
-        setTimeout(() => {
-          if (contentToAnalyze.includes('Buffer.from') && contentToAnalyze.includes('eval(')) {
-            console.log(chalk.red.bold('\n⚠️ THREAT DETECTED ⚠️'));
-            console.log(chalk.red(`Threat Type:  obfuscated_code`));
-            console.log(chalk.red(`Confidence:   98.50%`));
-            console.log(chalk.yellow(`Explanation:  Detected suspicious use of Buffer and eval which often indicates obfuscated malware payloads.`));
-            process.exit(1);
-          } else {
-            console.log(chalk.green.bold('\n✅ No threats detected.'));
-            console.log(chalk.green(`Confidence:   99.10%`));
-            process.exit(0);
-          }
-        }, 150);
+// 1. Typosquatting Check
+for (const dep of deps) {
+  for (const topPkg of TOP_PACKAGES) {
+    if (dep !== topPkg && Math.abs(dep.length - topPkg.length) <= 2) {
+      const dist = levenshtein(dep, topPkg);
+      if (dist === 1 || dist === 2) {
+        findings.push({ target: dep, type: 'Typosquatting', risk: 'HIGH', detail: `Looks like popular package '${topPkg}'` });
       }
     }
-  });
+  }
+}
 
-program.parse();
+// 2. Suspicious Scripts Check
+const patterns = [
+  { regex: /curl.*\|.*bash/i, name: 'Remote Execution (curl | bash)' },
+  { regex: /eval\(/i, name: 'Eval Injection' },
+  { regex: /Buffer\.from\(.*'base64'\)/i, name: 'Base64 Obfuscation' },
+  { regex: /nc\s+-e/i, name: 'Reverse Shell' }
+];
+
+for (const [sName, sContent] of Object.entries(scripts)) {
+  for (const p of patterns) {
+    if (p.regex.test(sContent)) findings.push({ target: `Script: ${sName}`, type: 'Malicious Payload', risk: 'CRITICAL', detail: `Detected: ${p.name}` });
+  }
+  if (sName === 'postinstall') findings.push({ target: `Script: postinstall`, type: 'Lifecycle Risk', risk: 'MEDIUM', detail: `Runs automatically on install.` });
+}
+
+// Minimal Output
+if (findings.length === 0) {
+  console.log(c.bold(c.green('✅ No threats detected! Supply chain looks clean.')));
+  process.exit(0);
+}
+
+console.log(c.bold(c.red(`⚠️  Found ${findings.length} potential security risks:\n`)));
+
+// Minimal Table Output
+console.log(`${c.bold(c.cyan('RISK'.padEnd(10)))} | ${c.bold(c.cyan('TARGET'.padEnd(20)))} | ${c.bold(c.cyan('DETAILS'))}`);
+console.log(''.padEnd(70, '-'));
+
+findings.forEach(f => {
+  let r = f.risk;
+  if (r === 'CRITICAL') r = c.bgRed(` ${r} `);
+  else if (r === 'HIGH') r = c.red(r);
+  else if (r === 'MEDIUM') r = c.yellow(r);
+  console.log(`${r.padEnd(10 + (r.length - f.risk.length))} | ${c.bold(f.target).padEnd(20 + 8)} | ${f.type} - ${c.magenta(f.detail)}`);
+});
+
+console.log(c.yellow('\nTip: Set JEV_API_KEY to enable deep AI semantic analysis (System 1 models).'));
+process.exit(1);

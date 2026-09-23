@@ -1,13 +1,13 @@
 {
   "name": "jev-sec-audit",
-  "version": "1.0.0",
-  "description": "Lightning-fast AI-powered supply chain security using Jev (System 1 models).",
+  "version": "1.0.2",
+  "description": "Lightning-fast AI-powered supply chain security using Jev (System 1 models). Zero dependencies.",
   "main": "index.js",
   "bin": {
     "jev-sec-audit": "./index.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node index.js test-malicious.json"
   },
   "repository": {
     "type": "git",
@@ -18,17 +18,8 @@
     "supply-chain",
     "ai",
     "jev",
-    "system-one",
-    "devsecops",
-    "audit",
-    "npm",
-    "package-lock"
+    "system-one"
   ],
   "author": "DhanushNehru",
-  "license": "MIT",
-  "dependencies": {
-    "axios": "^1.6.0",
-    "chalk": "^4.1.2",
-    "commander": "^11.1.0"
-  }
+  "license": "MIT"
 }
